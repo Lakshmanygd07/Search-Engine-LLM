@@ -1,50 +1,81 @@
-import streamlit as st  # Imports Streamlit for creating the web UI
-from langchain_groq import ChatGroq  # Imports ChatGroq LLM wrapper from LangChain-Groq
-from langchain_community.utilities import ArxivAPIWrapper, WikipediaAPIWrapper  # Imports wrappers for Arxiv and Wikipedia
-from langchain_community.tools import ArxivQueryRun, WikipediaQueryRun, DuckDuckGoSearchRun  # Imports query tools
-from langchain.agents import initialize_agent, AgentType  # Imports agent initializer and agent type
-from langchain.callbacks import StreamlitCallbackHandler  # Callback handler for displaying intermediate steps in Streamlit
-import os  # OS module for environment access (not used in current script)
-from dotenv import load_dotenv  # Loads environment variables from a .env file
+import streamlit as st
+from langchain_groq import ChatGroq
+from langchain_community.utilities import ArxivAPIWrapper, WikipediaAPIWrapper, DuckDuckGoSearchAPIWrapper
+from langchain_community.tools import ArxivQueryRun, WikipediaQueryRun
+from langchain.agents import initialize_agent, AgentType
+from langchain.callbacks import StreamlitCallbackHandler
+from langchain.tools import tool
+from dotenv import load_dotenv
 
-## Arxiv and Wikipedia Tools
-arxiv_wrapper = ArxivAPIWrapper(top_k_results=1, doc_content_chars_max=200)  # Initialize Arxiv wrapper with top 1 result, 200 char max
-arxiv = ArxivQueryRun(api_wrapper=arxiv_wrapper)  # Creates Arxiv query tool using the wrapper
+# Optional: load_dotenv() if you're using .env file locally
+# load_dotenv()
 
-api_wrapper = WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=200)  # Initialize Wikipedia wrapper similarly
-wiki = WikipediaQueryRun(api_wrapper=api_wrapper)  # Creates Wikipedia query tool
+## --- Tool Definitions ---
 
-search = DuckDuckGoSearchRun(name="Search")  # Creates DuckDuckGo search tool
+# Arxiv
+arxiv_wrapper = ArxivAPIWrapper(top_k_results=1, doc_content_chars_max=200)
+arxiv = ArxivQueryRun(api_wrapper=arxiv_wrapper)
 
-st.title("🔎 LangChain - Chat with search")  # Sets the Streamlit app title
+# Wikipedia
+wiki_wrapper = WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=200)
+wiki = WikipediaQueryRun(api_wrapper=wiki_wrapper)
+
+# Safe DuckDuckGo Search Tool with Error Handling
+@tool
+def safe_search(query: str) -> str:
+    try:
+        ddg = DuckDuckGoSearchAPIWrapper()
+        return ddg.run(query)
+    except Exception as e:
+        return f"Search failed: {str(e)}"
+
+search = safe_search
+
+## --- Streamlit UI Setup ---
+
+st.title("🔎 LangChain - Chat with Search")
+
 """
 In this example, we're using `StreamlitCallbackHandler` to display the thoughts and actions of an agent in an interactive Streamlit app.
 Try more LangChain 🤝 Streamlit Agent examples at [github.com/langchain-ai/streamlit-agent](https://github.com/langchain-ai/streamlit-agent).
-"""  # Description shown below the title
+"""
 
-## Sidebar for settings
-st.sidebar.title("Settings")  # Title in the sidebar
-api_key = st.sidebar.text_input("Enter your Groq API Key:", type="password")  # API key input (password hidden)
+# Sidebar for API Key input
+st.sidebar.title("Settings")
+api_key = st.sidebar.text_input("Enter your Groq API Key:", type="password")
 
-if "messages" not in st.session_state:  # If chat history isn't in session state
-    st.session_state["messages"] = [  # Initialize chat history with a welcome message
-        {"role": "assisstant", "content": "Hi, I'm a chatbot who can search the web. How can I help you?"}
+# Session State for chat history
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "Hi, I'm a chatbot who can search the web. How can I help you?"}
     ]
 
-for msg in st.session_state.messages:  # Loop through each message in session
-    st.chat_message(msg["role"]).write(msg['content'])  # Display chat messages by role
+# Display chat history
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
 
-if prompt := st.chat_input(placeholder="What is machine learning?"):  # If the user types a message
-    st.session_state.messages.append({"role": "user", "content": prompt})  # Add user message to chat history
-    st.chat_message("user").write(prompt)  # Display user message
+# Handle User Input
+if prompt := st.chat_input(placeholder="What is machine learning?"):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.chat_message("user").write(prompt)
 
-    llm = ChatGroq(groq_api_key=api_key, model_name="Llama3-8b-8192", streaming=True)  # Initialize the LLM with API key
-    tools = [search, arxiv, wiki]  # Define list of tools the agent can use
+    # Initialize LLM and Tools
+    llm = ChatGroq(groq_api_key=api_key, model_name="Llama3-8b-8192", streaming=True)
+    tools = [search, arxiv, wiki]
 
-    search_agent = initialize_agent(tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, handling_parsing_errors=True)  # Initialize the agent with tools and LLM
+    search_agent = initialize_agent(
+        tools,
+        llm,
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        handle_parsing_errors=True
+    )
 
-    with st.chat_message("assistant"):  # Display assistant response
-        st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=False)  # Setup callback to show intermediate steps
-        response = search_agent.run(st.session_state.messages, callbacks=[st_cb])  # Run agent on chat history and capture response
-        st.session_state.messages.append({'role': 'assistant', "content": response})  # Save assistant response to chat history
-        st.write(response)  # Display the assistant's response
+    with st.chat_message("assistant"):
+        st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=False)
+        try:
+            response = search_agent.run(st.session_state.messages, callbacks=[st_cb])
+        except Exception as e:
+            response = f"Agent failed: {str(e)}"
+
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        st.write(response)
