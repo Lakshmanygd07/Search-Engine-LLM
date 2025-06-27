@@ -1,13 +1,14 @@
 import streamlit as st
 from langchain_groq import ChatGroq
-from langchain_community.utilities import ArxivAPIWrapper, WikipediaAPIWrapper, DuckDuckGoSearchAPIWrapper
+from langchain_community.utilities import ArxivAPIWrapper, WikipediaAPIWrapper
 from langchain_community.tools import ArxivQueryRun, WikipediaQueryRun
 from langchain.agents import initialize_agent, AgentType
 from langchain.callbacks import StreamlitCallbackHandler
 from langchain.tools import tool
+from typing import Optional
 from dotenv import load_dotenv
 
-# Optional: load_dotenv() if you're using .env file locally
+# Optional: load_dotenv() if using .env file locally
 # load_dotenv()
 
 ## --- Tool Definitions ---
@@ -22,8 +23,12 @@ wiki = WikipediaQueryRun(api_wrapper=wiki_wrapper)
 
 # Safe DuckDuckGo Search Tool with Error Handling
 @tool
-def safe_search(query: str) -> str:
+def safe_search(query: str) -> Optional[str]:
+    """
+    Search the web using DuckDuckGo. Returns search results or error message.
+    """
     try:
+        from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
         ddg = DuckDuckGoSearchAPIWrapper()
         return ddg.run(query)
     except Exception as e:
