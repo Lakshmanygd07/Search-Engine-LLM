@@ -1,7 +1,11 @@
+---
 license: apache-2.0
 title: Search Engine
-sdk: gradio
 emoji: 🏃
-colorFrom: red
-colorTo: yellow
-short_description: Search Engine with LL
+colorFrom: yellow
+colorTo: red
+sdk: gradio
+sdk_version: "4.25.0"
+app_file: app.py
+pinned: false
+---
