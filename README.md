@@ -4,8 +4,8 @@ title: Search Engine
 emoji: 🏃
 colorFrom: red
 colorTo: yellow
-sdk: gradio
-sdk_version: "4.25.0"
+sdk: streamlit
+sdk_version: "1.35.0"  # Example latest, check actual version you want
 app_file: app.py
 pinned: false
 ---
